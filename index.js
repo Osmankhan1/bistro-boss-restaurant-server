@@ -1,5 +1,6 @@
 const express = require('express');
 const app = express();
+const jwt = require('jsonwebtoken');
 const cors = require('cors');
 require('dotenv').config()
 const port = process.env.PORT || 5000;
@@ -28,6 +29,56 @@ async function run() {
 
     const menuCollection = client.db("bistroDB").collection("menuItem");
     const CartCollection = client.db("bistroDB").collection("carts");
+    const userCollection = client.db("bistroDB").collection("users");
+
+    // jwt related
+    app.post('/jwt', async(req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN-SECRET, {
+        expiresIn: '1h'
+      })
+      res.send({token});
+    })
+
+
+    // user related API
+
+    app.get('/users', async(req, res) => {
+      console.log(req.headers);
+      const result = await userCollection.find().toArray();
+      res.send(result);
+    })
+
+    app.post ('/users' , async(req, res) => {
+      const user = req.body;
+      // insert email if user dosent exists
+      const query = {email: user.email}
+      const existingUser = await userCollection.findOne(query)
+      if(existingUser){
+        return res.send ({message: 'user already exists', insertedId: null})
+      }
+      const result = await userCollection.insertOne(user);
+      res.send(result);
+    })
+
+    app.patch('/users/admin/:id', async(req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id)};
+      const updatedDoc = {
+        $set: {
+          role: 'admin'
+        }
+      } 
+      const result = await userCollection.updateOne(filter, updatedDoc)
+      res.send(result);
+    })
+
+    app.delete('/users/:id', async(req, res) => {
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const result = await userCollection.deleteOne(query)
+      res.send(result);
+    })
 
     app.get ('/menuItem' , async(req, res) => {
         const result = await menuCollection.find().toArray();
@@ -41,11 +92,15 @@ async function run() {
       const result = await CartCollection.find(query).toArray();
       res.send(result);
     })
+
+
     app.post('/carts', async (req,res) => {
       const cartItem = req.body;
       const result = await CartCollection.insertOne(cartItem)
       res.send(result);
     })
+
+
 
     app.delete('/carts/:id', async (req, res) => {
       const id = req.params.id;
